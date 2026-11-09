@@ -1,15 +1,43 @@
-import { useRef, useState, type UIEvent } from 'react';
+import { useEffect, useRef, useState, type UIEvent } from 'react';
 import { Toolbar } from './components/Toolbar';
 import { PageView } from './components/PageView';
 import { ThumbnailSidebar } from './components/ThumbnailSidebar';
 import { useDocStore } from './store/useDocStore';
 import { CloseIcon } from './components/Icons';
+import { PropertyBar } from './components/PropertyBar';
 
 export default function App() {
   const { pages, zoom, error, loading, openFiles, setCurrentPage, clearError } = useDocStore();
   const [dragging, setDragging] = useState(false);
   const scrollFrame = useRef(0);
   const hasDoc = pages.length > 0;
+
+  // 全局快捷键：Delete 删除选中的标注，Esc 取消，T 文字工具
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      // 正在输入时不处理
+      if (target.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) return;
+      // 焦点在侧栏时，Delete 由侧栏处理（删页面）
+      const inSidebar = !!target.closest('.sidebar');
+
+      const s = useDocStore.getState();
+      if ((e.key === 'Delete' || e.key === 'Backspace') && s.selectedAnnot && !inSidebar) {
+        e.preventDefault();
+        s.deleteAnnotation(s.selectedAnnot.pageId, s.selectedAnnot.annotId);
+      } else if (e.key === 'Escape') {
+        s.selectAnnotation(null);
+        s.setTool('select');
+      } else if (e.key.toLowerCase() === 't' && !e.ctrlKey && !e.metaKey && !e.altKey && s.pages.length > 0) {
+        s.setTool(s.tool === 'text' ? 'select' : 'text');
+      } else if (e.key === 'Enter' && s.selectedAnnot) {
+        e.preventDefault();
+        s.setEditing(s.selectedAnnot.annotId); // 回车进入编辑
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   // 滚动时找出“当前页”：视口上方 1/3 处的那一页
   const handleScroll = (e: UIEvent<HTMLElement>) => {
@@ -49,6 +77,7 @@ export default function App() {
       }}
     >
       <Toolbar />
+      <PropertyBar />
       {error && (
         <div className="error-bar">
           <span>{error}</span>

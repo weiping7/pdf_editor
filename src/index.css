@@ -154,3 +154,46 @@ body { background: var(--bg); }
 }
 
 .error-bar .mini-btn { background: transparent; color: inherit; border-color: transparent; }
+
+/* 工具按钮 */
+.tool-btn { display: inline-flex; align-items: center; gap: 6px; }
+.tool-btn.active { background: rgba(37, 99, 235, 0.12); border-color: var(--primary); color: var(--primary); }
+
+/* 属性栏 */
+.property-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 16px;
+  padding: 6px 16px; background: var(--surface); border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.property-label { font-weight: 600; }
+.property-field { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.property-field select {
+  height: 28px; padding: 0 6px; border: 1px solid var(--border); border-radius: 5px;
+  background: var(--surface); color: var(--text);
+}
+.swatches { display: flex; align-items: center; gap: 4px; }
+.swatch {
+  width: 20px; height: 20px; padding: 0; border-radius: 50%; cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+}
+.swatch.active { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--primary); }
+.color-input { width: 26px; height: 24px; padding: 0; border: none; background: none; cursor: pointer; }
+.danger-btn { display: inline-flex; align-items: center; gap: 4px; height: 28px; color: var(--danger-text); }
+.danger-btn:hover:not(:disabled) { border-color: var(--danger-text); }
+
+/* 标注层：大小等于未旋转的页面，居中后按页面旋转 */
+.page.tool-text { cursor: text; }
+.annot-layer { position: absolute; left: 50%; top: 50%; pointer-events: none; }
+.text-annot {
+  position: absolute; transform-origin: 0 0; white-space: pre; line-height: 1.2;
+  /* 和导出用的 Helvetica 尺寸一致的字体 */
+  font-family: Helvetica, Arial, 'Liberation Sans', sans-serif;
+  min-width: 0.5em; min-height: 1.2em; pointer-events: auto; cursor: move; user-select: none;
+  outline-offset: calc(2px * var(--inv-scale, 1));
+}
+.text-annot:hover { outline: calc(1px * var(--inv-scale, 1)) dashed rgba(37, 99, 235, 0.6); }
+.text-annot.selected { outline: calc(1.5px * var(--inv-scale, 1)) dashed var(--primary); }
+.text-annot.editing {
+  outline: calc(1.5px * var(--inv-scale, 1)) solid var(--primary);
+  cursor: text; user-select: text; min-width: 2em;
+}
+.text-annot.static, .text-annot.static:hover { pointer-events: none; outline: none; }

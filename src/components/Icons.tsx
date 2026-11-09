@@ -53,3 +53,17 @@ export const DownloadIcon = (p: IconProps) => (
     <path d="M5 20h14" />
   </Svg>
 );
+
+export const CursorIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M5 3l14 8-6 2-3 6z" />
+  </Svg>
+);
+
+export const TextIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M5 6V4h14v2" />
+    <path d="M12 4v16" />
+    <path d="M9 20h6" />
+  </Svg>
+);

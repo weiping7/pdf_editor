@@ -2,6 +2,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useEffect, useRef, type MouseEvent } from 'react';
 import { RotateLeftIcon, RotateRightIcon, TrashIcon } from './Icons';
+import { AnnotationLayer } from './AnnotationLayer';
 import { usePageCanvas } from '../lib/usePageCanvas';
 import { displayRotation, useDocStore, type PageItem } from '../store/useDocStore';
 
@@ -57,6 +58,7 @@ export function Thumbnail({ page, pageNumber, selected, current, sourceColor, so
         <div ref={wrapperRef} className="thumb-page" style={{ width: cssWidth, height: cssHeight }}>
           <canvas ref={canvasRef} style={{ width: cssWidth, height: cssHeight }} />
           {rendering && <div className="thumb-loading" />}
+          <AnnotationLayer page={page} zoom={scale} interactive={false} />
         </div>
         <div className="thumb-actions" onPointerDown={stop} onClick={stop}>
           <button className="mini-btn" title="向左旋转" onClick={() => rotatePages([page.id], -90)}><RotateLeftIcon size={14} /></button>

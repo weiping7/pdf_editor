@@ -12,6 +12,35 @@ export type SourceFile = {
   bytes: ArrayBuffer;
 };
 
+/** 文字标注。坐标是“页面坐标”：未旋转页面，单位 pt，原点左上角（见 lib/coords.ts） */
+export type TextAnnotation = {
+  id: string;
+  type: 'text';
+  /** 文字框左上角 */
+  x: number;
+  y: number;
+  text: string;
+  /** 字号，单位 pt */
+  fontSize: number;
+  /** "#rrggbb" */
+  color: string;
+  /**
+   * 文字框自身的旋转（顺时针，绕左上角）。
+   * 在旋转过的页面上添加文字时，用它把文字转回“正”的方向。
+   */
+  rotation: Rotation;
+};
+
+/** 以后的高亮、签名也会加到这里 */
+export type Annotation = TextAnnotation;
+
+export type Tool = 'select' | 'text';
+
+export type TextStyle = { fontSize: number; color: string };
+
+/** 当前选中的标注 */
+export type AnnotRef = { pageId: string; annotId: string };
+
 /**
  * 编辑器里的“一页”。排序、删除、合并都只是在改 pages 数组，
  * 原 PDF 在导出之前一直不动。
@@ -27,6 +56,7 @@ export type PageItem = {
   baseRotation: number;
   /** 用户额外加的旋转 */
   rotation: Rotation;
+  annotations: Annotation[];
 };
 
 export const MIN_ZOOM = 0.25;
@@ -51,6 +81,15 @@ type DocState = {
   exporting: boolean;
   error: string | null;
 
+  /** 当前工具 */
+  tool: Tool;
+  /** 选中的标注 */
+  selectedAnnot: AnnotRef | null;
+  /** 正在输入文字的标注 id */
+  editingAnnotId: string | null;
+  /** 新建文字时使用的样式（会记住上次的选择） */
+  textStyle: TextStyle;
+
   /** replace：替换当前文档；append：追加到末尾（合并） */
   openFiles: (files: File[], mode: 'replace' | 'append') => Promise<void>;
   setZoom: (zoom: number) => void;
@@ -64,11 +103,26 @@ type DocState = {
   /** 导出 PDF 并下载；onlySelected 为 true 时只导出选中的页（提取页面） */
   exportPdf: (onlySelected?: boolean) => Promise<void>;
   clearError: () => void;
+
+  setTool: (tool: Tool) => void;
+  addAnnotation: (pageId: string, annot: Annotation, edit?: boolean) => void;
+  updateAnnotation: (pageId: string, annotId: string, patch: Partial<Annotation>) => void;
+  deleteAnnotation: (pageId: string, annotId: string) => void;
+  selectAnnotation: (ref: AnnotRef | null) => void;
+  setEditing: (annotId: string | null) => void;
+  /** 修改文字样式：同时作用于选中的文字和以后新建的文字 */
+  setTextStyle: (patch: Partial<TextStyle>) => void;
 };
 
 const uid = () => crypto.randomUUID();
 
 const isPdf = (f: File) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
+
+/** 修改某一页的标注列表 */
+const mapAnnots = (pages: PageItem[], pageId: string, fn: (a: Annotation[]) => Annotation[]) =>
+  pages.map((p) => (p.id === pageId ? { ...p, annotations: fn(p.annotations) } : p));
+
+export const newId = uid;
 
 export const useDocStore = create<DocState>((set, get) => ({
   files: [],
@@ -80,6 +134,10 @@ export const useDocStore = create<DocState>((set, get) => ({
   loading: false,
   exporting: false,
   error: null,
+  tool: 'select',
+  selectedAnnot: null,
+  editingAnnotId: null,
+  textStyle: { fontSize: 16, color: '#111111' },
 
   async openFiles(fileList, mode) {
     const pdfs = fileList.filter(isPdf);
@@ -100,7 +158,7 @@ export const useDocStore = create<DocState>((set, get) => ({
         const infos = await loadPdf(source.id, source.bytes);
         newFiles.push(source);
         for (const info of infos) {
-          newPages.push({ id: uid(), sourceId: source.id, ...info, rotation: 0 });
+          newPages.push({ id: uid(), sourceId: source.id, ...info, rotation: 0, annotations: [] });
         }
       } catch (err) {
         console.error(err);
@@ -117,6 +175,8 @@ export const useDocStore = create<DocState>((set, get) => ({
         pages: newPages,
         selectedIds: [],
         anchorId: null,
+        selectedAnnot: null,
+        editingAnnotId: null,
         currentPageId: newPages[0]?.id ?? null,
         loading: false,
         error,
@@ -210,6 +270,7 @@ export const useDocStore = create<DocState>((set, get) => ({
       files: files.filter((f) => usedSources.has(f.id)),
       selectedIds: s.selectedIds.filter((id) => !target.has(id)),
       anchorId: s.anchorId && target.has(s.anchorId) ? null : s.anchorId,
+      selectedAnnot: s.selectedAnnot && target.has(s.selectedAnnot.pageId) ? null : s.selectedAnnot,
       currentPageId: nextCurrent,
     }));
   },
@@ -236,5 +297,50 @@ export const useDocStore = create<DocState>((set, get) => ({
 
   clearError() {
     set({ error: null });
+  },
+
+  setTool(tool) {
+    // 切到文字工具时取消选中，属性栏改的是“新文字”的样式，而不是之前选中的文字
+    set(tool === 'text' ? { tool, editingAnnotId: null, selectedAnnot: null } : { tool, editingAnnotId: null });
+  },
+
+  addAnnotation(pageId, annot, edit = false) {
+    set((s) => ({
+      pages: mapAnnots(s.pages, pageId, (list) => [...list, annot]),
+      selectedAnnot: { pageId, annotId: annot.id },
+      editingAnnotId: edit ? annot.id : null,
+    }));
+  },
+
+  updateAnnotation(pageId, annotId, patch) {
+    set((s) => ({
+      pages: mapAnnots(s.pages, pageId, (list) =>
+        list.map((a) => (a.id === annotId ? ({ ...a, ...patch } as Annotation) : a)),
+      ),
+    }));
+  },
+
+  deleteAnnotation(pageId, annotId) {
+    set((s) => ({
+      pages: mapAnnots(s.pages, pageId, (list) => list.filter((a) => a.id !== annotId)),
+      selectedAnnot: s.selectedAnnot?.annotId === annotId ? null : s.selectedAnnot,
+      editingAnnotId: s.editingAnnotId === annotId ? null : s.editingAnnotId,
+    }));
+  },
+
+  selectAnnotation(ref) {
+    const { selectedAnnot, editingAnnotId } = get();
+    if (selectedAnnot?.annotId === ref?.annotId) return;
+    set({ selectedAnnot: ref, editingAnnotId: ref && ref.annotId === editingAnnotId ? editingAnnotId : null });
+  },
+
+  setEditing(annotId) {
+    set({ editingAnnotId: annotId });
+  },
+
+  setTextStyle(patch) {
+    const { selectedAnnot, updateAnnotation } = get();
+    set((s) => ({ textStyle: { ...s.textStyle, ...patch } }));
+    if (selectedAnnot) updateAnnotation(selectedAnnot.pageId, selectedAnnot.annotId, patch);
   },
 }));

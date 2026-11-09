@@ -1,10 +1,12 @@
 import { useRef } from 'react';
 import { MAX_ZOOM, MIN_ZOOM, useDocStore } from '../store/useDocStore';
+import { CursorIcon, TextIcon } from './Icons';
 
 export function Toolbar() {
   const openRef = useRef<HTMLInputElement>(null);
   const addRef = useRef<HTMLInputElement>(null);
-  const { files, pages, zoom, loading, exporting, currentPageId, openFiles, setZoom, exportPdf } = useDocStore();
+  const { files, pages, zoom, loading, exporting, currentPageId, tool, openFiles, setZoom, exportPdf, setTool } =
+    useDocStore();
   const hasDoc = pages.length > 0;
   const currentIndex = pages.findIndex((p) => p.id === currentPageId);
 
@@ -42,6 +44,25 @@ export function Toolbar() {
           </span>
         )}
       </div>
+
+      {hasDoc && (
+        <div className="toolbar-group tools">
+          <button
+            className={`btn tool-btn${tool === 'select' ? ' active' : ''}`}
+            onClick={() => setTool('select')}
+            title="选择、移动（Esc）"
+          >
+            <CursorIcon /> <span>选择</span>
+          </button>
+          <button
+            className={`btn tool-btn${tool === 'text' ? ' active' : ''}`}
+            onClick={() => setTool(tool === 'text' ? 'select' : 'text')}
+            title="添加文字：在页面上点一下（T）"
+          >
+            <TextIcon /> <span>文字</span>
+          </button>
+        </div>
+      )}
 
       {hasDoc && (
         <div className="toolbar-group">

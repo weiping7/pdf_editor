@@ -1,5 +1,6 @@
 // 只负责“导出”：用 pdf-lib 按编辑器里的页面顺序和旋转生成新的 PDF。
 import { displayRotation, type PageItem, type SourceFile } from '../store/useDocStore';
+import { LINE_HEIGHT, hexToRgb, textLineOps } from './coords';
 
 /**
  * 生成新的 PDF。
@@ -8,7 +9,7 @@ import { displayRotation, type PageItem, type SourceFile } from '../store/useDoc
  */
 export async function buildPdf(files: SourceFile[], pages: PageItem[]): Promise<Uint8Array> {
   // pdf-lib 比较大，用到时才加载，首页打开更快
-  const { PDFDocument, degrees } = await import('pdf-lib');
+  const { PDFDocument, StandardFonts, degrees, rgb } = await import('pdf-lib');
 
   const out = await PDFDocument.create();
 
@@ -32,6 +33,10 @@ export async function buildPdf(files: SourceFile[], pages: PageItem[]): Promise<
     copied.set(file.id, copies);
   }
 
+  // 有文字标注时才嵌入字体（目前用 PDF 标准字体 Helvetica，只支持英文和西欧字符）
+  const hasText = pages.some((p) => p.annotations.some((a) => a.type === 'text'));
+  const font = hasText ? await out.embedFont(StandardFonts.Helvetica) : null;
+
   // 2. 按编辑器里的顺序把页面加进新文档
   const cursor = new Map<string, number>(); // 每个源文件已经用到第几个复制页
   for (const page of pages) {
@@ -42,9 +47,41 @@ export async function buildPdf(files: SourceFile[], pages: PageItem[]): Promise<
     const pdfPage = out.addPage(copies[i]);
     // setRotation 设置的是绝对角度，所以要用“自带旋转 + 用户旋转”
     pdfPage.setRotation(degrees(displayRotation(page)));
+
+    // 3. 画标注。标注保存的是“未旋转页面”的坐标，正好对应 PDF 页面本身的坐标系，
+    //    画完后页面的 /Rotate 会把标注和内容一起旋转。
+    const box = pdfPage.getCropBox();
+    for (const a of page.annotations) {
+      if (a.type !== 'text' || !font || a.text.trim() === '') continue;
+      const [r, g, b] = hexToRgb(a.color);
+      for (const op of textLineOps(a.text, a, a.fontSize, a.rotation, box)) {
+        if (op.text === '') continue;
+        assertEncodable(font, op.text);
+        pdfPage.drawText(op.text, {
+          x: op.x,
+          y: op.y,
+          size: a.fontSize,
+          font,
+          color: rgb(r, g, b),
+          rotate: degrees(op.rotate),
+          lineHeight: a.fontSize * LINE_HEIGHT,
+        });
+      }
+    }
   }
 
   return out.save();
+}
+
+/** 标准字体不支持中文等字符，提前检查并给出看得懂的提示 */
+function assertEncodable(font: { encodeText: (t: string) => unknown }, text: string) {
+  for (const ch of text) {
+    try {
+      font.encodeText(ch);
+    } catch {
+      throw new Error(`文字里有暂不支持的字符“${ch}”，目前只支持英文和数字（中文会在第 7 阶段加入）`);
+    }
+  }
 }
 
 /** 让浏览器下载文件 */
