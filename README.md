@@ -1,0 +1,22 @@
+# PDF Editor
+
+纯前端的简单 PDF 编辑器（Vite + React + TypeScript + pdf.js）。
+
+## 运行
+
+```bash
+npm install
+npm run dev
+```
+
+打开 http://localhost:5173 ，点击“打开 PDF”或把 PDF 拖进页面。`sample.pdf` 是测试文件。
+
+## 进度
+
+- [x] 阶段 1：打开 PDF、逐页渲染（懒加载）、缩放
+- [ ] 阶段 2：缩略图侧栏、排序、旋转、删除、多文件合并
+- [ ] 阶段 3：导出
+- [ ] 阶段 4：文字标注
+- [ ] 阶段 5：高亮
+- [ ] 阶段 6：签名
+- [ ] 阶段 7：中文字体、美化、部署

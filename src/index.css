@@ -1,0 +1,77 @@
+:root {
+  --bg: #e9ebef;
+  --surface: #ffffff;
+  --border: #d5d8de;
+  --text: #1f2328;
+  --muted: #6a717c;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --danger-bg: #fdecec;
+  --danger-text: #b42318;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: var(--text);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1b1d21;
+    --surface: #26292e;
+    --border: #3a3e45;
+    --text: #e6e8eb;
+    --muted: #9aa1ab;
+    --danger-bg: #3b1d1d;
+    --danger-text: #f6a8a0;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--bg); }
+
+.app { display: flex; flex-direction: column; height: 100%; }
+
+/* 工具栏 */
+.toolbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.toolbar-group { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.brand { font-weight: 700; margin-right: 8px; }
+.file-info { color: var(--muted); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.btn {
+  height: 32px; padding: 0 12px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text); font-size: 14px; cursor: pointer;
+}
+.btn:hover:not(:disabled) { border-color: var(--primary); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn.primary:hover:not(:disabled) { background: var(--primary-hover); }
+.btn.icon { width: 32px; padding: 0; font-size: 18px; }
+.btn.zoom-value { min-width: 64px; }
+
+.error-bar { padding: 8px 16px; background: var(--danger-bg); color: var(--danger-text); font-size: 14px; }
+
+/* 页面区域 */
+.viewer { flex: 1; overflow: auto; padding: 24px 16px; }
+.page-block { display: flex; flex-direction: column; align-items: center; margin: 0 auto 24px; width: max-content; }
+.page { position: relative; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2); }
+.page canvas { display: block; }
+.page-loading {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  color: #999; font-size: 14px; background: #fff;
+}
+.page-number { margin-top: 6px; color: var(--muted); font-size: 12px; }
+
+/* 空状态与拖放 */
+.empty { height: 100%; display: grid; place-items: center; }
+.empty-card {
+  padding: 48px 40px; border: 2px dashed var(--border); border-radius: 12px;
+  text-align: center; color: var(--muted); max-width: 420px;
+}
+.empty-icon { font-size: 48px; }
+.drop-overlay {
+  position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none;
+  background: rgba(37, 99, 235, 0.12); border: 3px dashed var(--primary);
+  color: var(--primary); font-size: 20px; font-weight: 600;
+}
