@@ -2,36 +2,52 @@ import { useRef } from 'react';
 import { MAX_ZOOM, MIN_ZOOM, useDocStore } from '../store/useDocStore';
 
 export function Toolbar() {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const { files, pages, zoom, loading, openFiles, setZoom } = useDocStore();
+  const openRef = useRef<HTMLInputElement>(null);
+  const addRef = useRef<HTMLInputElement>(null);
+  const { files, pages, zoom, loading, currentPageId, openFiles, setZoom } = useDocStore();
   const hasDoc = pages.length > 0;
+  const currentIndex = pages.findIndex((p) => p.id === currentPageId);
+
+  const fileInput = (ref: React.RefObject<HTMLInputElement | null>, mode: 'replace' | 'append') => (
+    <input
+      ref={ref}
+      type="file"
+      accept="application/pdf,.pdf"
+      multiple
+      hidden
+      onChange={(e) => {
+        openFiles(Array.from(e.target.files ?? []), mode);
+        e.target.value = ''; // 允许再次选择同一个文件
+      }}
+    />
+  );
 
   return (
     <header className="toolbar">
       <div className="toolbar-group">
         <span className="brand">PDF Editor</span>
-        <button className="btn primary" onClick={() => inputRef.current?.click()} disabled={loading}>
-          {loading ? '打开中…' : '打开 PDF'}
+        <button className="btn primary" onClick={() => openRef.current?.click()} disabled={loading}>
+          {loading ? '处理中…' : '打开 PDF'}
         </button>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="application/pdf,.pdf"
-          hidden
-          onChange={(e) => {
-            openFiles(Array.from(e.target.files ?? []));
-            e.target.value = ''; // 允许再次选择同一个文件
-          }}
-        />
         {hasDoc && (
-          <span className="file-info" title={files[0]?.name}>
-            {files[0]?.name} · 共 {pages.length} 页
+          <button className="btn" onClick={() => addRef.current?.click()} disabled={loading} title="把其他 PDF 的页面加到末尾">
+            + 添加 PDF
+          </button>
+        )}
+        {fileInput(openRef, 'replace')}
+        {fileInput(addRef, 'append')}
+        {hasDoc && (
+          <span className="file-info" title={files.map((f) => f.name).join('\n')}>
+            {files.length === 1 ? files[0].name : `${files.length} 个文件`}
           </span>
         )}
       </div>
 
       {hasDoc && (
         <div className="toolbar-group">
+          <span className="page-indicator">
+            {currentIndex >= 0 ? currentIndex + 1 : '-'} / {pages.length}
+          </span>
           <button className="btn icon" onClick={() => setZoom(zoom - 0.25)} disabled={zoom <= MIN_ZOOM} title="缩小">
             −
           </button>
