@@ -45,3 +45,11 @@ export const CloseIcon = (p: IconProps) => (
     <path d="M6 6l12 12M18 6L6 18" />
   </Svg>
 );
+
+export const DownloadIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 4v11" />
+    <path d="M7 10l5 5 5-5" />
+    <path d="M5 20h14" />
+  </Svg>
+);

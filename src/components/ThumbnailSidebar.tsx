@@ -12,14 +12,16 @@ import type { KeyboardEvent } from 'react';
 import { useDocStore } from '../store/useDocStore';
 import { scrollToPage } from '../lib/scrollToPage';
 import { Thumbnail } from './Thumbnail';
-import { CloseIcon, RotateLeftIcon, RotateRightIcon, TrashIcon } from './Icons';
+import { CloseIcon, DownloadIcon, RotateLeftIcon, RotateRightIcon, TrashIcon } from './Icons';
 
 // 合并多个文件时，用不同颜色标出每页来自哪个文件
 const SOURCE_COLORS = ['#2563eb', '#16a34a', '#ea580c', '#9333ea', '#db2777', '#0891b2'];
 
 export function ThumbnailSidebar() {
-  const { pages, files, selectedIds, currentPageId, select, selectAll, clearSelection, movePage, rotatePages, deletePages } =
-    useDocStore();
+  const {
+    pages, files, selectedIds, currentPageId, exporting,
+    select, selectAll, clearSelection, movePage, rotatePages, deletePages, exportPdf,
+  } = useDocStore();
 
   const sensors = useSensors(
     // 移动超过 5px 才算拖拽，这样普通点击不会被当成拖拽
@@ -56,6 +58,7 @@ export function ThumbnailSidebar() {
             <div className="sidebar-actions">
               <button className="mini-btn" title="向左旋转所选" onClick={() => rotatePages(selectedIds, -90)}><RotateLeftIcon size={14} /></button>
               <button className="mini-btn" title="向右旋转所选" onClick={() => rotatePages(selectedIds, 90)}><RotateRightIcon size={14} /></button>
+              <button className="mini-btn" title="只导出所选页面（提取页面）" disabled={exporting} onClick={() => exportPdf(true)}><DownloadIcon size={14} /></button>
               <button className="mini-btn danger" title="删除所选（Delete）" onClick={() => deletePages(selectedIds)}><TrashIcon size={14} /></button>
               <button className="mini-btn" title="取消选择（Esc）" onClick={clearSelection}><CloseIcon size={14} /></button>
             </div>

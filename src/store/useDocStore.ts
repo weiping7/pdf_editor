@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { arrayMove } from '@dnd-kit/sortable';
 import { loadPdf, unloadPdf } from '../lib/pdfRender';
+import { buildPdf, downloadBytes, exportFileName } from '../lib/exportPdf';
 
 export type Rotation = 0 | 90 | 180 | 270;
 
@@ -47,6 +48,7 @@ type DocState = {
   currentPageId: string | null;
   zoom: number;
   loading: boolean;
+  exporting: boolean;
   error: string | null;
 
   /** replace：替换当前文档；append：追加到末尾（合并） */
@@ -59,6 +61,8 @@ type DocState = {
   movePage: (activeId: string, overId: string) => void;
   rotatePages: (ids: string[], delta: 90 | -90) => void;
   deletePages: (ids: string[]) => void;
+  /** 导出 PDF 并下载；onlySelected 为 true 时只导出选中的页（提取页面） */
+  exportPdf: (onlySelected?: boolean) => Promise<void>;
   clearError: () => void;
 };
 
@@ -74,6 +78,7 @@ export const useDocStore = create<DocState>((set, get) => ({
   currentPageId: null,
   zoom: 1,
   loading: false,
+  exporting: false,
   error: null,
 
   async openFiles(fileList, mode) {
@@ -207,6 +212,26 @@ export const useDocStore = create<DocState>((set, get) => ({
       anchorId: s.anchorId && target.has(s.anchorId) ? null : s.anchorId,
       currentPageId: nextCurrent,
     }));
+  },
+
+  async exportPdf(onlySelected = false) {
+    const { files, pages, selectedIds, exporting } = get();
+    if (exporting) return;
+    const selected = new Set(selectedIds);
+    // 按侧栏里的顺序导出，而不是按点击选择的顺序
+    const target = onlySelected ? pages.filter((p) => selected.has(p.id)) : pages;
+    if (target.length === 0) return;
+
+    set({ exporting: true, error: null });
+    try {
+      const bytes = await buildPdf(files, target);
+      const usedFiles = files.filter((f) => target.some((p) => p.sourceId === f.id));
+      downloadBytes(bytes, exportFileName(usedFiles, onlySelected));
+      set({ exporting: false });
+    } catch (err) {
+      console.error(err);
+      set({ exporting: false, error: `导出失败：${(err as Error).message}` });
+    }
   },
 
   clearError() {

@@ -4,7 +4,7 @@ import { MAX_ZOOM, MIN_ZOOM, useDocStore } from '../store/useDocStore';
 export function Toolbar() {
   const openRef = useRef<HTMLInputElement>(null);
   const addRef = useRef<HTMLInputElement>(null);
-  const { files, pages, zoom, loading, currentPageId, openFiles, setZoom } = useDocStore();
+  const { files, pages, zoom, loading, exporting, currentPageId, openFiles, setZoom, exportPdf } = useDocStore();
   const hasDoc = pages.length > 0;
   const currentIndex = pages.findIndex((p) => p.id === currentPageId);
 
@@ -45,6 +45,10 @@ export function Toolbar() {
 
       {hasDoc && (
         <div className="toolbar-group">
+          <button className="btn primary" onClick={() => exportPdf()} disabled={exporting || loading} title="按当前顺序和旋转导出全部页面">
+            {exporting ? '导出中…' : '导出 PDF'}
+          </button>
+          <span className="toolbar-divider" />
           <span className="page-indicator">
             {currentIndex >= 0 ? currentIndex + 1 : '-'} / {pages.length}
           </span>
