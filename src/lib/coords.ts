@@ -115,3 +115,71 @@ export function hexToRgb(hex: string): [number, number, number] {
   const n = parseInt(hex.replace('#', ''), 16);
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
+
+export type Rect = { x: number; y: number; width: number; height: number };
+
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+/** 两个点（页面坐标）围成的矩形，限制在页面内 */
+export function rectFromPoints(a: Point, b: Point, page: Size): Rect {
+  const x1 = clamp(Math.min(a.x, b.x), 0, page.width);
+  const y1 = clamp(Math.min(a.y, b.y), 0, page.height);
+  const x2 = clamp(Math.max(a.x, b.x), 0, page.width);
+  const y2 = clamp(Math.max(a.y, b.y), 0, page.height);
+  return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+}
+
+/** 平移矩形，整个矩形保持在页面内 */
+export function moveRect(rect: Rect, delta: Point, page: Size): Rect {
+  return {
+    ...rect,
+    x: clamp(rect.x + delta.x, 0, page.width - rect.width),
+    y: clamp(rect.y + delta.y, 0, page.height - rect.height),
+  };
+}
+
+/** 调整大小的手柄，用页面坐标里的方向表示（n = 上边，e = 右边…） */
+export type Handle = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
+export const HANDLES: Handle[] = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'];
+
+/**
+ * 拖动手柄调整矩形大小。拖过头（比如把右边拖到左边的左侧）时矩形会翻转，
+ * 和大多数绘图软件一样。
+ * @param delta 页面坐标里的拖动距离
+ */
+export function resizeRect(rect: Rect, handle: Handle, delta: Point, page: Size, minSize = 4): Rect {
+  let x1 = rect.x;
+  let y1 = rect.y;
+  let x2 = rect.x + rect.width;
+  let y2 = rect.y + rect.height;
+  if (handle.includes('w')) x1 += delta.x;
+  if (handle.includes('e')) x2 += delta.x;
+  if (handle.includes('n')) y1 += delta.y;
+  if (handle.includes('s')) y2 += delta.y;
+  const r = rectFromPoints({ x: x1, y: y1 }, { x: x2, y: y2 }, page);
+  // 不能小到看不见、点不到
+  return {
+    x: Math.min(r.x, page.width - minSize),
+    y: Math.min(r.y, page.height - minSize),
+    width: Math.max(r.width, minSize),
+    height: Math.max(r.height, minSize),
+  };
+}
+
+/** 页面旋转后，手柄在屏幕上对应的鼠标指针样式 */
+export function handleCursor(handle: Handle, rotation: number): string {
+  const i = HANDLES.indexOf(handle) + Math.round(rotation / 45);
+  // CSS 只有 4 种双向箭头：n-s、e-w、ne-sw、nw-se
+  const screen = HANDLES[((i % 8) + 8) % 8];
+  return `${screen}-resize`;
+}
+
+/** 页面坐标的矩形 → PDF 坐标（左下角为原点）的矩形，用于 pdf-lib 的 drawRectangle */
+export function rectToPdf(rect: Rect, box: Box): Rect {
+  return {
+    x: box.x + rect.x,
+    y: box.y + box.height - rect.y - rect.height,
+    width: rect.width,
+    height: rect.height,
+  };
+}

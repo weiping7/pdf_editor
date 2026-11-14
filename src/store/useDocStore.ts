@@ -31,10 +31,27 @@ export type TextAnnotation = {
   rotation: Rotation;
 };
 
-/** 以后的高亮、签名也会加到这里 */
-export type Annotation = TextAnnotation;
+/**
+ * 高亮：页面坐标里的矩形。页面只会旋转 90° 的倍数，
+ * 所以这个矩形在屏幕上也一直是横平竖直的，不需要自己的旋转角度。
+ */
+export type HighlightAnnotation = {
+  id: string;
+  type: 'highlight';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+};
 
-export type Tool = 'select' | 'text';
+/** 以后的签名也会加到这里 */
+export type Annotation = TextAnnotation | HighlightAnnotation;
+
+export type Tool = 'select' | 'text' | 'highlight';
+
+/** 高亮的透明度，显示和导出一致 */
+export const HIGHLIGHT_OPACITY = 0.4;
 
 export type TextStyle = { fontSize: number; color: string };
 
@@ -89,6 +106,8 @@ type DocState = {
   editingAnnotId: string | null;
   /** 新建文字时使用的样式（会记住上次的选择） */
   textStyle: TextStyle;
+  /** 新建高亮时使用的颜色 */
+  highlightColor: string;
 
   /** replace：替换当前文档；append：追加到末尾（合并） */
   openFiles: (files: File[], mode: 'replace' | 'append') => Promise<void>;
@@ -112,6 +131,8 @@ type DocState = {
   setEditing: (annotId: string | null) => void;
   /** 修改文字样式：同时作用于选中的文字和以后新建的文字 */
   setTextStyle: (patch: Partial<TextStyle>) => void;
+  /** 修改高亮颜色：同时作用于选中的高亮和以后新建的高亮 */
+  setHighlightColor: (color: string) => void;
 };
 
 const uid = () => crypto.randomUUID();
@@ -123,6 +144,13 @@ const mapAnnots = (pages: PageItem[], pageId: string, fn: (a: Annotation[]) => A
   pages.map((p) => (p.id === pageId ? { ...p, annotations: fn(p.annotations) } : p));
 
 export const newId = uid;
+
+/** 找出当前选中的标注 */
+export function getSelectedAnnotation(s: Pick<DocState, 'pages' | 'selectedAnnot'>): Annotation | undefined {
+  const ref = s.selectedAnnot;
+  if (!ref) return undefined;
+  return s.pages.find((p) => p.id === ref.pageId)?.annotations.find((a) => a.id === ref.annotId);
+}
 
 export const useDocStore = create<DocState>((set, get) => ({
   files: [],
@@ -138,6 +166,7 @@ export const useDocStore = create<DocState>((set, get) => ({
   selectedAnnot: null,
   editingAnnotId: null,
   textStyle: { fontSize: 16, color: '#111111' },
+  highlightColor: '#facc15',
 
   async openFiles(fileList, mode) {
     const pdfs = fileList.filter(isPdf);
@@ -300,8 +329,8 @@ export const useDocStore = create<DocState>((set, get) => ({
   },
 
   setTool(tool) {
-    // 切到文字工具时取消选中，属性栏改的是“新文字”的样式，而不是之前选中的文字
-    set(tool === 'text' ? { tool, editingAnnotId: null, selectedAnnot: null } : { tool, editingAnnotId: null });
+    // 切到文字/高亮工具时取消选中，属性栏改的是“新标注”的样式，而不是之前选中的标注
+    set(tool === 'select' ? { tool, editingAnnotId: null } : { tool, editingAnnotId: null, selectedAnnot: null });
   },
 
   addAnnotation(pageId, annot, edit = false) {
@@ -341,6 +370,16 @@ export const useDocStore = create<DocState>((set, get) => ({
   setTextStyle(patch) {
     const { selectedAnnot, updateAnnotation } = get();
     set((s) => ({ textStyle: { ...s.textStyle, ...patch } }));
-    if (selectedAnnot) updateAnnotation(selectedAnnot.pageId, selectedAnnot.annotId, patch);
+    if (selectedAnnot && getSelectedAnnotation(get())?.type === 'text') {
+      updateAnnotation(selectedAnnot.pageId, selectedAnnot.annotId, patch);
+    }
+  },
+
+  setHighlightColor(color) {
+    const { selectedAnnot, updateAnnotation } = get();
+    set({ highlightColor: color });
+    if (selectedAnnot && getSelectedAnnotation(get())?.type === 'highlight') {
+      updateAnnotation(selectedAnnot.pageId, selectedAnnot.annotId, { color });
+    }
   },
 }));

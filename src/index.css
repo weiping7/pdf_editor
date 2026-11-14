@@ -197,3 +197,22 @@ body { background: var(--bg); }
   cursor: text; user-select: text; min-width: 2em;
 }
 .text-annot.static, .text-annot.static:hover { pointer-events: none; outline: none; }
+
+/* 高亮 */
+.page.tool-highlight { cursor: crosshair; }
+.page.tool-highlight .annot-layer > *,
+.page.tool-text .highlight-annot { pointer-events: none; }
+/* 颜色层和 canvas 做正片叠底：像真的荧光笔，下面的黑字不会被盖淡（导出时用同样的混合模式） */
+.highlight-fills { mix-blend-mode: multiply; }
+.highlight-fill { position: absolute; }
+.highlight-annot { position: absolute; pointer-events: auto; cursor: move; }
+.highlight-annot:hover { outline: 1px dashed rgba(37, 99, 235, 0.6); }
+.highlight-annot.selected { outline: 1.5px dashed var(--primary); outline-offset: 1px; }
+.hl-handle {
+  position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px;
+  background: #fff; border: 1.5px solid var(--primary); border-radius: 2px;
+}
+.hl-n { left: 50%; top: 0; } .hl-s { left: 50%; top: 100%; }
+.hl-e { left: 100%; top: 50%; } .hl-w { left: 0; top: 50%; }
+.hl-ne { left: 100%; top: 0; } .hl-nw { left: 0; top: 0; }
+.hl-se { left: 100%; top: 100%; } .hl-sw { left: 0; top: 100%; }

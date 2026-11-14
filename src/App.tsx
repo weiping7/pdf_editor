@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type UIEvent } from 'react';
 import { Toolbar } from './components/Toolbar';
 import { PageView } from './components/PageView';
 import { ThumbnailSidebar } from './components/ThumbnailSidebar';
-import { useDocStore } from './store/useDocStore';
+import { getSelectedAnnotation, useDocStore } from './store/useDocStore';
 import { CloseIcon } from './components/Icons';
 import { PropertyBar } from './components/PropertyBar';
 
@@ -12,7 +12,7 @@ export default function App() {
   const scrollFrame = useRef(0);
   const hasDoc = pages.length > 0;
 
-  // 全局快捷键：Delete 删除选中的标注，Esc 取消，T 文字工具
+  // 全局快捷键：Delete 删除选中的标注，Esc 取消，T 文字工具，H 高亮工具
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -28,9 +28,10 @@ export default function App() {
       } else if (e.key === 'Escape') {
         s.selectAnnotation(null);
         s.setTool('select');
-      } else if (e.key.toLowerCase() === 't' && !e.ctrlKey && !e.metaKey && !e.altKey && s.pages.length > 0) {
-        s.setTool(s.tool === 'text' ? 'select' : 'text');
-      } else if (e.key === 'Enter' && s.selectedAnnot) {
+      } else if (/^[th]$/i.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && s.pages.length > 0) {
+        const tool = e.key.toLowerCase() === 't' ? 'text' : 'highlight';
+        s.setTool(s.tool === tool ? 'select' : tool);
+      } else if (e.key === 'Enter' && s.selectedAnnot && getSelectedAnnotation(s)?.type === 'text') {
         e.preventDefault();
         s.setEditing(s.selectedAnnot.annotId); // 回车进入编辑
       }

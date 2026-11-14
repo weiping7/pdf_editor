@@ -1,6 +1,6 @@
 // 只负责“导出”：用 pdf-lib 按编辑器里的页面顺序和旋转生成新的 PDF。
-import { displayRotation, type PageItem, type SourceFile } from '../store/useDocStore';
-import { LINE_HEIGHT, hexToRgb, textLineOps } from './coords';
+import { HIGHLIGHT_OPACITY, displayRotation, type PageItem, type SourceFile } from '../store/useDocStore';
+import { LINE_HEIGHT, hexToRgb, rectToPdf, textLineOps } from './coords';
 
 /**
  * 生成新的 PDF。
@@ -9,7 +9,7 @@ import { LINE_HEIGHT, hexToRgb, textLineOps } from './coords';
  */
 export async function buildPdf(files: SourceFile[], pages: PageItem[]): Promise<Uint8Array> {
   // pdf-lib 比较大，用到时才加载，首页打开更快
-  const { PDFDocument, StandardFonts, degrees, rgb } = await import('pdf-lib');
+  const { PDFDocument, StandardFonts, BlendMode, degrees, rgb } = await import('pdf-lib');
 
   const out = await PDFDocument.create();
 
@@ -51,6 +51,19 @@ export async function buildPdf(files: SourceFile[], pages: PageItem[]): Promise<
     // 3. 画标注。标注保存的是“未旋转页面”的坐标，正好对应 PDF 页面本身的坐标系，
     //    画完后页面的 /Rotate 会把标注和内容一起旋转。
     const box = pdfPage.getCropBox();
+
+    // 先画高亮，再画文字，文字才不会被高亮盖住（和编辑器里的顺序一致）
+    for (const a of page.annotations) {
+      if (a.type !== 'highlight') continue;
+      const [r, g, b] = hexToRgb(a.color);
+      pdfPage.drawRectangle({
+        ...rectToPdf(a, box),
+        color: rgb(r, g, b),
+        opacity: HIGHLIGHT_OPACITY,
+        blendMode: BlendMode.Multiply, // 正片叠底，和编辑器里的显示一致
+      });
+    }
+
     for (const a of page.annotations) {
       if (a.type !== 'text' || !font || a.text.trim() === '') continue;
       const [r, g, b] = hexToRgb(a.color);

@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { MAX_ZOOM, MIN_ZOOM, useDocStore } from '../store/useDocStore';
-import { CursorIcon, TextIcon } from './Icons';
+import { CursorIcon, HighlightIcon, TextIcon } from './Icons';
 
 export function Toolbar() {
   const openRef = useRef<HTMLInputElement>(null);
@@ -60,6 +60,13 @@ export function Toolbar() {
             title="添加文字：在页面上点一下（T）"
           >
             <TextIcon /> <span>文字</span>
+          </button>
+          <button
+            className={`btn tool-btn${tool === 'highlight' ? ' active' : ''}`}
+            onClick={() => setTool(tool === 'highlight' ? 'select' : 'highlight')}
+            title="高亮：在页面上拖出一个框（H）"
+          >
+            <HighlightIcon /> <span>高亮</span>
           </button>
         </div>
       )}
