@@ -131,10 +131,17 @@ type DocState = {
   pendingSignature: SavedSignature | null;
   /** 是否显示签名对话框 */
   signatureDialogOpen: boolean;
+  /** 是否显示页面侧栏（手机上默认收起） */
+  sidebarOpen: boolean;
+  /** 有没有还没导出的修改（关闭网页前提醒） */
+  dirty: boolean;
 
   /** replace：替换当前文档；append：追加到末尾（合并） */
   openFiles: (files: File[], mode: 'replace' | 'append') => Promise<void>;
   setZoom: (zoom: number) => void;
+  /** 缩放到当前页的宽度刚好放得下 */
+  fitWidth: (availableWidth: number) => void;
+  setSidebarOpen: (open: boolean) => void;
   setCurrentPage: (id: string | null) => void;
   select: (id: string, mode?: SelectMode) => void;
   selectAll: () => void;
@@ -216,6 +223,8 @@ export const useDocStore = create<DocState>((set, get) => ({
   savedSignatures: loadSignatures(),
   pendingSignature: null,
   signatureDialogOpen: false,
+  sidebarOpen: typeof window === 'undefined' || window.innerWidth > 640,
+  dirty: false,
 
   async openFiles(fileList, mode) {
     const pdfs = fileList.filter(isPdf);
@@ -258,6 +267,7 @@ export const useDocStore = create<DocState>((set, get) => ({
         currentPageId: newPages[0]?.id ?? null,
         loading: false,
         error,
+        dirty: false,
       });
     } else {
       set((s) => ({
@@ -266,12 +276,28 @@ export const useDocStore = create<DocState>((set, get) => ({
         currentPageId: s.currentPageId ?? newPages[0]?.id ?? null,
         loading: false,
         error,
+        // 第一次打开（空白时拖进来）不算修改，往已有文档里追加才算
+        dirty: s.pages.length > 0 && newPages.length > 0 ? true : s.dirty,
       }));
     }
   },
 
   setZoom(zoom) {
     set({ zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round(zoom * 100) / 100)) });
+  },
+
+  fitWidth(availableWidth) {
+    const { pages, currentPageId, setZoom } = get();
+    // 以当前这一页为准（旋转 90° 的页面宽高互换）。
+    // 不用最宽的一页：文档里夹着一张横向页时，其他竖向页会被缩得很小。
+    const page = pages.find((p) => p.id === currentPageId) ?? pages[0];
+    if (!page) return;
+    const width = displayRotation(page) % 180 ? page.height : page.width;
+    setZoom(Math.floor((availableWidth / width) * 20) / 20); // 取 5% 的整数倍，看起来整齐
+  },
+
+  setSidebarOpen(open) {
+    set({ sidebarOpen: open });
   },
 
   setCurrentPage(id) {
@@ -312,7 +338,7 @@ export const useDocStore = create<DocState>((set, get) => ({
       const from = s.pages.findIndex((p) => p.id === activeId);
       const to = s.pages.findIndex((p) => p.id === overId);
       if (from < 0 || to < 0 || from === to) return s;
-      return { pages: arrayMove(s.pages, from, to) };
+      return { pages: arrayMove(s.pages, from, to), dirty: true };
     });
   },
 
@@ -322,6 +348,7 @@ export const useDocStore = create<DocState>((set, get) => ({
       pages: s.pages.map((p) =>
         target.has(p.id) ? { ...p, rotation: (((p.rotation + delta) % 360) + 360) % 360 as Rotation } : p,
       ),
+      dirty: true,
     }));
   },
 
@@ -350,6 +377,7 @@ export const useDocStore = create<DocState>((set, get) => ({
       anchorId: s.anchorId && target.has(s.anchorId) ? null : s.anchorId,
       selectedAnnot: s.selectedAnnot && target.has(s.selectedAnnot.pageId) ? null : s.selectedAnnot,
       currentPageId: nextCurrent,
+      dirty: remaining.length > 0, // 全删光了就没什么可导出的了
     }));
   },
 
@@ -366,7 +394,8 @@ export const useDocStore = create<DocState>((set, get) => ({
       const bytes = await buildPdf(files, target);
       const usedFiles = files.filter((f) => target.some((p) => p.sourceId === f.id));
       downloadBytes(bytes, exportFileName(usedFiles, onlySelected));
-      set({ exporting: false });
+      // 只导出了部分页面时，其他修改还没保存
+      set({ exporting: false, dirty: onlySelected ? get().dirty : false });
     } catch (err) {
       console.error(err);
       set({ exporting: false, error: `导出失败：${(err as Error).message}` });
@@ -386,6 +415,7 @@ export const useDocStore = create<DocState>((set, get) => ({
   addAnnotation(pageId, annot, edit = false) {
     set((s) => ({
       pages: mapAnnots(s.pages, pageId, (list) => [...list, annot]),
+      dirty: true,
       selectedAnnot: { pageId, annotId: annot.id },
       editingAnnotId: edit ? annot.id : null,
     }));
@@ -396,12 +426,14 @@ export const useDocStore = create<DocState>((set, get) => ({
       pages: mapAnnots(s.pages, pageId, (list) =>
         list.map((a) => (a.id === annotId ? ({ ...a, ...patch } as Annotation) : a)),
       ),
+      dirty: true,
     }));
   },
 
   deleteAnnotation(pageId, annotId) {
     set((s) => ({
       pages: mapAnnots(s.pages, pageId, (list) => list.filter((a) => a.id !== annotId)),
+      dirty: true,
       selectedAnnot: s.selectedAnnot?.annotId === annotId ? null : s.selectedAnnot,
       editingAnnotId: s.editingAnnotId === annotId ? null : s.editingAnnotId,
     }));

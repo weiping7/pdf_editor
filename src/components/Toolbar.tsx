@@ -1,13 +1,13 @@
 import { useRef } from 'react';
 import { MAX_ZOOM, MIN_ZOOM, useDocStore } from '../store/useDocStore';
-import { CursorIcon, HighlightIcon, SignatureIcon, TextIcon } from './Icons';
+import { CursorIcon, FitWidthIcon, HighlightIcon, SidebarIcon, SignatureIcon, TextIcon } from './Icons';
 
 export function Toolbar() {
   const openRef = useRef<HTMLInputElement>(null);
   const addRef = useRef<HTMLInputElement>(null);
   const {
     files, pages, zoom, loading, exporting, currentPageId, tool,
-    openFiles, setZoom, exportPdf, setTool, openSignatureDialog,
+    sidebarOpen, openFiles, setZoom, fitWidth, exportPdf, setTool, openSignatureDialog, setSidebarOpen,
   } = useDocStore();
   const hasDoc = pages.length > 0;
   const currentIndex = pages.findIndex((p) => p.id === currentPageId);
@@ -29,13 +29,24 @@ export function Toolbar() {
   return (
     <header className="toolbar">
       <div className="toolbar-group">
+        {hasDoc && (
+          <button
+            className={`btn icon${sidebarOpen ? ' active' : ''}`}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            title={sidebarOpen ? '收起页面列表' : '显示页面列表'}
+            aria-label="页面列表"
+            aria-pressed={sidebarOpen}
+          >
+            <SidebarIcon />
+          </button>
+        )}
         <span className="brand">PDF Editor</span>
         <button className="btn primary" onClick={() => openRef.current?.click()} disabled={loading}>
-          {loading ? '处理中…' : '打开 PDF'}
+          {loading ? '处理中…' : <>打开<span className="hide-mobile"> PDF</span></>}
         </button>
         {hasDoc && (
           <button className="btn" onClick={() => addRef.current?.click()} disabled={loading} title="把其他 PDF 的页面加到末尾">
-            + 添加 PDF
+            + 添加<span className="hide-mobile"> PDF</span>
           </button>
         )}
         {fileInput(openRef, 'replace')}
@@ -83,7 +94,7 @@ export function Toolbar() {
       {hasDoc && (
         <div className="toolbar-group">
           <button className="btn primary" onClick={() => exportPdf()} disabled={exporting || loading} title="按当前顺序和旋转导出全部页面">
-            {exporting ? '导出中…' : '导出 PDF'}
+            {exporting ? '导出中…' : <>导出<span className="hide-mobile"> PDF</span></>}
           </button>
           <span className="toolbar-divider" />
           <span className="page-indicator">
@@ -97,6 +108,17 @@ export function Toolbar() {
           </button>
           <button className="btn icon" onClick={() => setZoom(zoom + 0.25)} disabled={zoom >= MAX_ZOOM} title="放大">
             +
+          </button>
+          <button
+            className="btn icon"
+            onClick={() => {
+              const viewer = document.querySelector('.viewer');
+              if (viewer) fitWidth(viewer.clientWidth - 32);
+            }}
+            title="适合宽度"
+            aria-label="适合宽度"
+          >
+            <FitWidthIcon />
           </button>
         </div>
       )}

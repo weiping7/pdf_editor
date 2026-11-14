@@ -2,13 +2,15 @@ import { useEffect, useRef, useState, type UIEvent } from 'react';
 import { Toolbar } from './components/Toolbar';
 import { PageView } from './components/PageView';
 import { ThumbnailSidebar } from './components/ThumbnailSidebar';
-import { getSelectedAnnotation, useDocStore } from './store/useDocStore';
+import { displayRotation, getSelectedAnnotation, useDocStore } from './store/useDocStore';
 import { CloseIcon } from './components/Icons';
 import { PropertyBar } from './components/PropertyBar';
 import { SignatureDialog } from './components/SignatureDialog';
 
 export default function App() {
-  const { pages, zoom, error, loading, signatureDialogOpen, openFiles, setCurrentPage, clearError } = useDocStore();
+  const { files, pages, zoom, error, loading, signatureDialogOpen, sidebarOpen, dirty } = useDocStore();
+  const { openFiles, setCurrentPage, clearError, setSidebarOpen } = useDocStore.getState();
+  const viewerRef = useRef<HTMLElement>(null);
   const [dragging, setDragging] = useState(false);
   const scrollFrame = useRef(0);
   const hasDoc = pages.length > 0;
@@ -41,6 +43,27 @@ export default function App() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
+
+  // 打开新文档时，如果页面比屏幕宽（比如手机），自动缩小到刚好放得下
+  const firstFileId = files[0]?.id;
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!firstFileId || !viewer) return;
+    const s = useDocStore.getState();
+    const first = s.pages[0];
+    const available = viewer.clientWidth - 32; // 减去左右内边距
+    const width = displayRotation(first) % 180 ? first.height : first.width;
+    if (width > available) s.fitWidth(available);
+    else s.setZoom(1);
+  }, [firstFileId]);
+
+  // 有没导出的修改时，关闭或刷新网页前提醒一下
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
 
   // 滚动时找出“当前页”：视口上方 1/3 处的那一页
   const handleScroll = (e: UIEvent<HTMLElement>) => {
@@ -90,14 +113,25 @@ export default function App() {
       )}
 
       <div className="workspace">
-        {hasDoc && <ThumbnailSidebar />}
-        <main className="viewer" onScroll={handleScroll}>
+        {hasDoc && sidebarOpen && (
+          <>
+            <ThumbnailSidebar />
+            {/* 手机上侧栏盖在页面上面，点旁边空白处收起 */}
+            <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
+          </>
+        )}
+        <main className="viewer" ref={viewerRef} onScroll={handleScroll}>
           {!hasDoc ? (
             <div className="empty">
               <div className="empty-card">
                 <div className="empty-icon">📄</div>
-                <p>{loading ? '正在打开…' : '把 PDF 拖到这里，或点击左上角“打开 PDF”'}</p>
+                <p>{loading ? '正在打开…' : '点击“打开 PDF”，或把文件拖到这里'}</p>
                 <p className="empty-sub">可以一次选多个文件，会按顺序合并</p>
+                <ul className="empty-features">
+                  <li>页面：排序、旋转、删除、合并、提取</li>
+                  <li>标注：文字（支持中文）、高亮、签名</li>
+                  <li>🔒 所有处理都在你的浏览器里完成，文件不会上传</li>
+                </ul>
               </div>
             </div>
           ) : (

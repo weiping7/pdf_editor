@@ -81,3 +81,17 @@ export const SignatureIcon = (p: IconProps) => (
     <path d="M3 21h18" />
   </Svg>
 );
+
+export const SidebarIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M9 4v16" />
+  </Svg>
+);
+
+export const FitWidthIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 4v16M21 4v16" />
+    <path d="M7 12h10M10 9l-3 3 3 3M14 9l3 3-3 3" />
+  </Svg>
+);

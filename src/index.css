@@ -1,3 +1,10 @@
+/* 中文字体：只有页面上出现中文文字时浏览器才会下载 */
+@font-face {
+  font-family: 'Noto Sans SC Subset';
+  src: url('./assets/fonts/NotoSansSC-GB2312.ttf') format('truetype');
+  font-display: swap;
+}
+
 :root {
   --bg: #e9ebef;
   --surface: #ffffff;
@@ -47,7 +54,8 @@ body { background: var(--bg); }
 .btn:disabled { opacity: 0.5; cursor: default; }
 .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
 .btn.primary:hover:not(:disabled) { background: var(--primary-hover); }
-.btn.icon { width: 32px; padding: 0; font-size: 18px; }
+.btn.icon { width: 32px; padding: 0; font-size: 18px; display: inline-grid; place-items: center; }
+.btn.icon.active { background: rgba(37, 99, 235, 0.12); border-color: var(--primary); color: var(--primary); }
 .btn.zoom-value { min-width: 64px; }
 
 .error-bar {
@@ -59,7 +67,8 @@ body { background: var(--bg); }
 .page-indicator { color: var(--muted); font-size: 14px; min-width: 56px; text-align: center; font-variant-numeric: tabular-nums; }
 
 /* 工作区：侧栏 + 主视图 */
-.workspace { flex: 1; display: flex; min-height: 0; }
+.workspace { flex: 1; display: flex; min-height: 0; position: relative; }
+.sidebar-backdrop { display: none; }
 
 /* 小图标按钮 */
 .mini-btn {
@@ -113,19 +122,10 @@ body { background: var(--bg); }
 .thumb-actions .mini-btn { width: 24px; height: 24px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
 .thumb-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
 
-/* 触屏没有 hover，直接显示按钮 */
+/* 触屏没有 hover：只在选中的缩略图上显示按钮，免得挡住所有缩略图 */
 @media (hover: none) {
-  .thumb-actions { opacity: 1; }
-}
-
-/* 手机：侧栏变窄 */
-@media (max-width: 640px) {
-  .sidebar { width: 120px; }
-  .sidebar-hint { display: none; }
-  .thumb { margin: 0 4px 8px; }
-  .thumb-frame { width: 100px; height: 140px; }
-  .toolbar { flex-wrap: wrap; }
-  .brand { display: none; }
+  .thumb-actions { opacity: 0; pointer-events: none; }
+  .thumb.selected .thumb-actions { opacity: 1; pointer-events: auto; }
 }
 
 /* 页面区域 */
@@ -147,6 +147,10 @@ body { background: var(--bg); }
 }
 .empty-icon { font-size: 48px; }
 .empty-sub { font-size: 13px; opacity: 0.8; }
+.empty-features {
+  margin: 20px 0 0; padding: 14px 0 0; border-top: 1px solid var(--border);
+  list-style: none; font-size: 13px; line-height: 1.9; text-align: left;
+}
 .drop-overlay {
   position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none;
   background: rgba(37, 99, 235, 0.12); border: 3px dashed var(--primary);
@@ -190,6 +194,8 @@ body { background: var(--bg); }
   min-width: 0.5em; min-height: 1.2em; pointer-events: auto; cursor: move; user-select: none;
   outline-offset: calc(2px * var(--inv-scale, 1));
 }
+/* 含中文的文字：和导出用同一个字体（英文也用它），保证显示和导出一模一样 */
+.text-annot.cjk { font-family: 'Noto Sans SC Subset', sans-serif; }
 .text-annot:hover { outline: calc(1px * var(--inv-scale, 1)) dashed rgba(37, 99, 235, 0.6); }
 .text-annot.selected { outline: calc(1.5px * var(--inv-scale, 1)) dashed var(--primary); }
 .text-annot.editing {
@@ -286,3 +292,36 @@ body { background: var(--bg); }
   background: repeating-conic-gradient(#f3f4f6 0% 25%, #fff 0% 50%) 0 0 / 16px 16px;
 }
 .sig-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+/* 只给读屏软件看的文字（手机上工具按钮只显示图标） */
+@media (max-width: 640px) {
+  .hide-mobile { display: none; }
+  .tool-btn span {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .tool-btn { width: 38px; padding: 0; justify-content: center; }
+
+  /* 工具栏：两行，按钮紧凑一点 */
+  .toolbar { flex-wrap: wrap; gap: 6px 8px; padding: 6px 8px; }
+  .toolbar-group { gap: 4px; }
+  .toolbar .btn { height: 34px; padding: 0 10px; }
+  .toolbar .btn.icon, .toolbar .tool-btn { width: 34px; padding: 0; }
+  .toolbar .btn.zoom-value { min-width: 52px; padding: 0 4px; }
+  .brand, .file-info, .toolbar-divider { display: none; }
+  .page-indicator { min-width: 44px; font-size: 13px; }
+
+  .property-bar { gap: 8px 12px; padding: 6px 8px; }
+  .viewer { padding: 16px; }
+
+  /* 侧栏变成从左边滑出的抽屉，盖在页面上面 */
+  .sidebar {
+    position: absolute; left: 0; top: 0; bottom: 0; z-index: 20; width: 168px;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.2);
+  }
+  .sidebar-backdrop { display: block; position: absolute; inset: 0; z-index: 15; background: rgba(0, 0, 0, 0.3); }
+  .sidebar-hint { display: none; }
+  .sidebar-header { flex-wrap: wrap; }
+  .thumb-frame { width: 120px; height: 150px; }
+
+  .modal { padding: 14px; }
+}

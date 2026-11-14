@@ -17,9 +17,8 @@ export type Box = { x: number; y: number; width: number; height: number };
 /** 文字的行高（字号的倍数），显示和导出必须一致 */
 export const LINE_HEIGHT = 1.2;
 /**
- * 第一行文字的基线距离文字框顶部有多远（字号的倍数）。
- * Helvetica/Arial：ascent 0.905，descent 0.212，
- * 行高 1.2 时上下各留 (1.2 - 1.117) / 2，所以基线在 0.0415 + 0.905 ≈ 0.9465。
+ * 英文（Helvetica/Arial）第一行文字的基线距离文字框顶部有多远（字号的倍数）。
+ * 中文字体的值不一样，见 lib/fonts.ts。
  */
 export const BASELINE = 0.9465;
 
@@ -88,6 +87,7 @@ export type TextLineOp = {
  * @param anchor 文字框左上角（页面坐标）
  * @param rotation 文字框自身的旋转（顺时针，绕左上角）
  * @param box 页面的裁剪框
+ * @param baseline 所用字体的基线位置（字号的倍数）
  */
 export function textLineOps(
   text: string,
@@ -95,10 +95,11 @@ export function textLineOps(
   fontSize: number,
   rotation: number,
   box: Box,
+  baseline = BASELINE,
 ): TextLineOp[] {
   return text.split('\n').map((line, i) => {
     // 这一行的基线起点相对于文字框左上角的偏移（未旋转时只有向下的偏移）
-    const offset = rotateVector({ x: 0, y: (BASELINE + i * LINE_HEIGHT) * fontSize }, rotation);
+    const offset = rotateVector({ x: 0, y: (baseline + i * LINE_HEIGHT) * fontSize }, rotation);
     const px = anchor.x + offset.x;
     const py = anchor.y + offset.y;
     return {

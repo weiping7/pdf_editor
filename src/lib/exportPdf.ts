@@ -1,6 +1,9 @@
 // 只负责“导出”：用 pdf-lib 按编辑器里的页面顺序和旋转生成新的 PDF。
 import { HIGHLIGHT_OPACITY, displayRotation, type PageItem, type SourceFile } from '../store/useDocStore';
 import { LINE_HEIGHT, hexToRgb, imagePlacement, rectToPdf, textLineOps } from './coords';
+import { BASELINE_CJK, BASELINE_LATIN, loadCjkFont, needsCjkFont } from './fonts';
+import { loadHarfBuzz, subsetFont } from './subsetFont';
+import harfbuzzWasmUrl from 'harfbuzzjs/dist/harfbuzz-subset.wasm?url';
 
 /**
  * 生成新的 PDF。
@@ -33,9 +36,25 @@ export async function buildPdf(files: SourceFile[], pages: PageItem[]): Promise<
     copied.set(file.id, copies);
   }
 
-  // 有文字标注时才嵌入字体（目前用 PDF 标准字体 Helvetica，只支持英文和西欧字符）
-  const hasText = pages.some((p) => p.annotations.some((a) => a.type === 'text'));
-  const font = hasText ? await out.embedFont(StandardFonts.Helvetica) : null;
+  // 有文字时才嵌入字体：英文用 PDF 标准字体 Helvetica，含中文的文字用思源黑体（只嵌入用到的字）
+  const texts = pages.flatMap((p) => p.annotations).filter((a) => a.type === 'text' && a.text.trim() !== '');
+  const latinFont = texts.some((a) => a.type === 'text' && !needsCjkFont(a.text))
+    ? await out.embedFont(StandardFonts.Helvetica)
+    : null;
+  let cjkFont: Awaited<ReturnType<typeof out.embedFont>> | null = null;
+  let cjkChars: Set<number> | null = null;
+  const cjkText = texts.map((a) => (a.type === 'text' && needsCjkFont(a.text) ? a.text : '')).join('');
+  if (cjkText) {
+    const [bytes, hb, { default: fontkit }] = await Promise.all([
+      loadCjkFont(),
+      loadHarfBuzz(() => fetch(harfbuzzWasmUrl).then((r) => r.arrayBuffer())),
+      import('@pdf-lib/fontkit'),
+    ]);
+    out.registerFontkit(fontkit);
+    // 先用 HarfBuzz 取出用到的字，再整个嵌入（pdf-lib 自己的子集功能会弄坏思源黑体）
+    cjkFont = await out.embedFont(subsetFont(hb, bytes, cjkText), { subset: false });
+    cjkChars = new Set(cjkFont.getCharacterSet()); // 字体里没有的字不会出现在这里
+  }
 
   // 同一个签名用在多处时只嵌入一次
   const images = new Map<string, Awaited<ReturnType<typeof out.embedPng>>>();
@@ -83,11 +102,14 @@ export async function buildPdf(files: SourceFile[], pages: PageItem[]): Promise<
     }
 
     for (const a of page.annotations) {
-      if (a.type !== 'text' || !font || a.text.trim() === '') continue;
+      if (a.type !== 'text' || a.text.trim() === '') continue;
+      const cjk = needsCjkFont(a.text);
+      const font = cjk ? cjkFont! : latinFont!;
+      if (cjk) assertInFont(cjkChars!, a.text);
       const [r, g, b] = hexToRgb(a.color);
-      for (const op of textLineOps(a.text, a, a.fontSize, a.rotation, box)) {
+      const baseline = cjk ? BASELINE_CJK : BASELINE_LATIN;
+      for (const op of textLineOps(a.text, a, a.fontSize, a.rotation, box, baseline)) {
         if (op.text === '') continue;
-        assertEncodable(font, op.text);
         pdfPage.drawText(op.text, {
           x: op.x,
           y: op.y,
@@ -104,13 +126,12 @@ export async function buildPdf(files: SourceFile[], pages: PageItem[]): Promise<
   return out.save();
 }
 
-/** 标准字体不支持中文等字符，提前检查并给出看得懂的提示 */
-function assertEncodable(font: { encodeText: (t: string) => unknown }, text: string) {
+/** 中文字体只包含常用字，遇到不包含的字提前给出看得懂的提示，而不是导出一堆方块 */
+function assertInFont(chars: Set<number>, text: string) {
   for (const ch of text) {
-    try {
-      font.encodeText(ch);
-    } catch {
-      throw new Error(`文字里有暂不支持的字符“${ch}”，目前只支持英文和数字（中文会在第 7 阶段加入）`);
+    if (ch === '\n') continue;
+    if (!chars.has(ch.codePointAt(0)!)) {
+      throw new Error(`文字里有暂不支持的字符“${ch}”（中文字体只包含 7000 多个常用简体字和符号）`);
     }
   }
 }

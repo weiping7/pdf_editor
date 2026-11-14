@@ -1,5 +1,6 @@
-import { useEffect, useRef, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { screenDeltaToPage } from '../../lib/coords';
+import { needsCjkFont } from '../../lib/fonts';
 import { displayRotation, useDocStore, type PageItem, type TextAnnotation } from '../../store/useDocStore';
 
 /**
@@ -23,12 +24,16 @@ export function TextBox({ page, annot, zoom, interactive }: Props) {
 
   const editRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ startX: number; startY: number; x: number; y: number } | null>(null);
+  // 输入时文字还没保存到 store，用这个记住“现在有没有中文”，好马上换成和导出一样的字体
+  const [typingCjk, setTypingCjk] = useState(false);
+  const cjk = editing ? typingCjk : needsCjkFont(annot.text);
 
   // 进入编辑状态：填入文字、聚焦、光标放到最后
   useEffect(() => {
     const el = editRef.current;
     if (!editing || !el) return;
     el.textContent = annot.text;
+    setTypingCjk(needsCjkFont(annot.text));
     el.focus();
     const range = document.createRange();
     range.selectNodeContents(el);
@@ -88,7 +93,7 @@ export function TextBox({ page, annot, zoom, interactive }: Props) {
 
   if (!interactive) {
     return (
-      <div className="text-annot static" style={style}>
+      <div className={`text-annot static${cjk ? ' cjk' : ''}`} style={style}>
         {annot.text}
       </div>
     );
@@ -99,7 +104,7 @@ export function TextBox({ page, annot, zoom, interactive }: Props) {
       <div
         key="edit"
         ref={editRef}
-        className="text-annot editing"
+        className={`text-annot editing${cjk ? ' cjk' : ''}`}
         style={style}
         contentEditable="plaintext-only"
         suppressContentEditableWarning
@@ -107,6 +112,7 @@ export function TextBox({ page, annot, zoom, interactive }: Props) {
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         onBlur={commit}
+        onInput={(e) => setTypingCjk(needsCjkFont(e.currentTarget.textContent ?? ''))}
         onKeyDown={(e) => {
           e.stopPropagation();
           if (e.key === 'Escape') e.currentTarget.blur();
@@ -118,7 +124,7 @@ export function TextBox({ page, annot, zoom, interactive }: Props) {
   return (
     <div
       key="view"
-      className={`text-annot${selected ? ' selected' : ''}`}
+      className={`text-annot${selected ? ' selected' : ''}${cjk ? ' cjk' : ''}`}
       style={style}
       title="拖动移动，双击编辑"
       onPointerDown={onPointerDown}
