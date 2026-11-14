@@ -45,10 +45,27 @@ export type HighlightAnnotation = {
   color: string;
 };
 
-/** 以后的签名也会加到这里 */
-export type Annotation = TextAnnotation | HighlightAnnotation;
+/** 签名：一张透明背景的 PNG 图片，放在页面坐标的矩形里 */
+export type SignatureAnnotation = {
+  id: string;
+  type: 'signature';
+  x: number;
+  y: number;
+  /** 矩形的宽高（页面坐标）。图片转了 90° 时，宽高和图片本身是反的 */
+  width: number;
+  height: number;
+  /** PNG 的 data URL */
+  image: string;
+  /** 图片自身的旋转（顺时针），在旋转过的页面上让签名保持正向，和文字一样 */
+  rotation: Rotation;
+};
 
-export type Tool = 'select' | 'text' | 'highlight';
+export type Annotation = TextAnnotation | HighlightAnnotation | SignatureAnnotation;
+
+/** 画好、可以重复使用的签名 */
+export type SavedSignature = { id: string; image: string; width: number; height: number };
+
+export type Tool = 'select' | 'text' | 'highlight' | 'signature';
 
 /** 高亮的透明度，显示和导出一致 */
 export const HIGHLIGHT_OPACITY = 0.4;
@@ -108,6 +125,12 @@ type DocState = {
   textStyle: TextStyle;
   /** 新建高亮时使用的颜色 */
   highlightColor: string;
+  /** 保存过的签名（也存在浏览器里，下次打开还在） */
+  savedSignatures: SavedSignature[];
+  /** 签名工具下，点击页面时要放的签名 */
+  pendingSignature: SavedSignature | null;
+  /** 是否显示签名对话框 */
+  signatureDialogOpen: boolean;
 
   /** replace：替换当前文档；append：追加到末尾（合并） */
   openFiles: (files: File[], mode: 'replace' | 'append') => Promise<void>;
@@ -133,9 +156,32 @@ type DocState = {
   setTextStyle: (patch: Partial<TextStyle>) => void;
   /** 修改高亮颜色：同时作用于选中的高亮和以后新建的高亮 */
   setHighlightColor: (color: string) => void;
+  openSignatureDialog: (open: boolean) => void;
+  /** 选好签名，进入“点击页面放置”状态 */
+  startPlacingSignature: (sig: SavedSignature) => void;
+  saveSignature: (sig: SavedSignature) => void;
+  removeSavedSignature: (id: string) => void;
 };
 
 const uid = () => crypto.randomUUID();
+
+// 签名存在浏览器的 localStorage 里。隐私模式等情况下可能读写失败，失败时只是不记住。
+const SIGNATURE_KEY = 'pdf-editor.signatures';
+function loadSignatures(): SavedSignature[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(SIGNATURE_KEY) ?? '[]');
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+function storeSignatures(list: SavedSignature[]) {
+  try {
+    localStorage.setItem(SIGNATURE_KEY, JSON.stringify(list));
+  } catch {
+    // 存不下（比如空间满了）就算了，本次使用不受影响
+  }
+}
 
 const isPdf = (f: File) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
 
@@ -167,6 +213,9 @@ export const useDocStore = create<DocState>((set, get) => ({
   editingAnnotId: null,
   textStyle: { fontSize: 16, color: '#111111' },
   highlightColor: '#facc15',
+  savedSignatures: loadSignatures(),
+  pendingSignature: null,
+  signatureDialogOpen: false,
 
   async openFiles(fileList, mode) {
     const pdfs = fileList.filter(isPdf);
@@ -330,7 +379,8 @@ export const useDocStore = create<DocState>((set, get) => ({
 
   setTool(tool) {
     // 切到文字/高亮工具时取消选中，属性栏改的是“新标注”的样式，而不是之前选中的标注
-    set(tool === 'select' ? { tool, editingAnnotId: null } : { tool, editingAnnotId: null, selectedAnnot: null });
+    const base = { tool, editingAnnotId: null, ...(tool === 'signature' ? {} : { pendingSignature: null }) };
+    set(tool === 'select' ? base : { ...base, selectedAnnot: null });
   },
 
   addAnnotation(pageId, annot, edit = false) {
@@ -373,6 +423,27 @@ export const useDocStore = create<DocState>((set, get) => ({
     if (selectedAnnot && getSelectedAnnotation(get())?.type === 'text') {
       updateAnnotation(selectedAnnot.pageId, selectedAnnot.annotId, patch);
     }
+  },
+
+  openSignatureDialog(open) {
+    set({ signatureDialogOpen: open });
+  },
+
+  startPlacingSignature(sig) {
+    get().setTool('signature');
+    set({ pendingSignature: sig, signatureDialogOpen: false });
+  },
+
+  saveSignature(sig) {
+    const list = [sig, ...get().savedSignatures.filter((s) => s.id !== sig.id)].slice(0, 6);
+    set({ savedSignatures: list });
+    storeSignatures(list);
+  },
+
+  removeSavedSignature(id) {
+    const list = get().savedSignatures.filter((s) => s.id !== id);
+    set({ savedSignatures: list });
+    storeSignatures(list);
   },
 
   setHighlightColor(color) {

@@ -1,6 +1,6 @@
 // 只负责“导出”：用 pdf-lib 按编辑器里的页面顺序和旋转生成新的 PDF。
 import { HIGHLIGHT_OPACITY, displayRotation, type PageItem, type SourceFile } from '../store/useDocStore';
-import { LINE_HEIGHT, hexToRgb, rectToPdf, textLineOps } from './coords';
+import { LINE_HEIGHT, hexToRgb, imagePlacement, rectToPdf, textLineOps } from './coords';
 
 /**
  * 生成新的 PDF。
@@ -37,6 +37,17 @@ export async function buildPdf(files: SourceFile[], pages: PageItem[]): Promise<
   const hasText = pages.some((p) => p.annotations.some((a) => a.type === 'text'));
   const font = hasText ? await out.embedFont(StandardFonts.Helvetica) : null;
 
+  // 同一个签名用在多处时只嵌入一次
+  const images = new Map<string, Awaited<ReturnType<typeof out.embedPng>>>();
+  const embedSignature = async (dataUrl: string) => {
+    let img = images.get(dataUrl);
+    if (!img) {
+      img = await out.embedPng(dataUrl);
+      images.set(dataUrl, img);
+    }
+    return img;
+  };
+
   // 2. 按编辑器里的顺序把页面加进新文档
   const cursor = new Map<string, number>(); // 每个源文件已经用到第几个复制页
   for (const page of pages) {
@@ -52,7 +63,7 @@ export async function buildPdf(files: SourceFile[], pages: PageItem[]): Promise<
     //    画完后页面的 /Rotate 会把标注和内容一起旋转。
     const box = pdfPage.getCropBox();
 
-    // 先画高亮，再画文字，文字才不会被高亮盖住（和编辑器里的顺序一致）
+    // 绘制顺序和编辑器一致：高亮 → 签名 → 文字
     for (const a of page.annotations) {
       if (a.type !== 'highlight') continue;
       const [r, g, b] = hexToRgb(a.color);
@@ -62,6 +73,13 @@ export async function buildPdf(files: SourceFile[], pages: PageItem[]): Promise<
         opacity: HIGHLIGHT_OPACITY,
         blendMode: BlendMode.Multiply, // 正片叠底，和编辑器里的显示一致
       });
+    }
+
+    for (const a of page.annotations) {
+      if (a.type !== 'signature') continue;
+      const img = await embedSignature(a.image);
+      const p = imagePlacement(a, a.rotation, box);
+      pdfPage.drawImage(img, { x: p.x, y: p.y, width: p.width, height: p.height, rotate: degrees(p.rotate) });
     }
 
     for (const a of page.annotations) {

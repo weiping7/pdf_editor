@@ -5,9 +5,10 @@ import { ThumbnailSidebar } from './components/ThumbnailSidebar';
 import { getSelectedAnnotation, useDocStore } from './store/useDocStore';
 import { CloseIcon } from './components/Icons';
 import { PropertyBar } from './components/PropertyBar';
+import { SignatureDialog } from './components/SignatureDialog';
 
 export default function App() {
-  const { pages, zoom, error, loading, openFiles, setCurrentPage, clearError } = useDocStore();
+  const { pages, zoom, error, loading, signatureDialogOpen, openFiles, setCurrentPage, clearError } = useDocStore();
   const [dragging, setDragging] = useState(false);
   const scrollFrame = useRef(0);
   const hasDoc = pages.length > 0;
@@ -22,6 +23,7 @@ export default function App() {
       const inSidebar = !!target.closest('.sidebar');
 
       const s = useDocStore.getState();
+      if (s.signatureDialogOpen) return; // 对话框打开时快捷键不生效
       if ((e.key === 'Delete' || e.key === 'Backspace') && s.selectedAnnot && !inSidebar) {
         e.preventDefault();
         s.deleteAnnotation(s.selectedAnnot.pageId, s.selectedAnnot.annotId);
@@ -79,6 +81,7 @@ export default function App() {
     >
       <Toolbar />
       <PropertyBar />
+      {signatureDialogOpen && <SignatureDialog />}
       {error && (
         <div className="error-bar">
           <span>{error}</span>

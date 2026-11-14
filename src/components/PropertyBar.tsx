@@ -25,6 +25,23 @@ export function PropertyBar() {
     </button>
   );
 
+  if (kind === 'signature') {
+    const pending = state.pendingSignature;
+    return (
+      <div className="property-bar">
+        <span className="property-label">{annot ? '签名' : '点击页面放置签名'}</span>
+        {!annot && pending && <img className="pending-sig" src={pending.image} alt="要放置的签名" />}
+        {!annot && (
+          <button className="btn" onClick={() => state.openSignatureDialog(true)}>
+            换一个签名
+          </button>
+        )}
+        {annot && <span className="property-hint">拖动四个角调整大小</span>}
+        {deleteButton}
+      </div>
+    );
+  }
+
   if (kind === 'highlight') {
     const color = annot?.type === 'highlight' ? annot.color : highlightColor;
     return (

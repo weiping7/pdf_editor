@@ -37,3 +37,39 @@ describe('高亮矩形', () => {
     expect(rectToPdf(r, { x: 10, y: 20, ...page })).toEqual({ x: 110, y: 670, width: 200, height: 50 });
   });
 });
+
+import { fitSize, imagePlacement, resizeRectKeepAspect } from './coords';
+
+describe('签名（等比例）', () => {
+  const sig = { x: 100, y: 100, width: 200, height: 100 };
+
+  it('拖右下角放大，比例不变，左上角不动', () => {
+    expect(resizeRectKeepAspect(sig, 'se', { x: 100, y: 0 }, page)).toEqual({ x: 100, y: 100, width: 300, height: 150 });
+    // 竖着拖得更多，就按竖的算
+    expect(resizeRectKeepAspect(sig, 'se', { x: 0, y: 100 }, page)).toEqual({ x: 100, y: 100, width: 400, height: 200 });
+  });
+
+  it('拖左上角缩小，右下角不动', () => {
+    expect(resizeRectKeepAspect(sig, 'nw', { x: 100, y: 50 }, page)).toEqual({ x: 200, y: 150, width: 100, height: 50 });
+  });
+
+  it('不会超出页面，也不会小于最小尺寸', () => {
+    expect(resizeRectKeepAspect(sig, 'se', { x: 1000, y: 0 }, page)).toEqual({ x: 100, y: 100, width: 500, height: 250 });
+    expect(resizeRectKeepAspect(sig, 'se', { x: -500, y: -500 }, page)).toEqual({ x: 100, y: 100, width: 24, height: 12 });
+  });
+
+  it('新放的签名大小', () => {
+    expect(fitSize(4, 160, 80)).toEqual({ width: 160, height: 40 });
+    expect(fitSize(1, 160, 80)).toEqual({ width: 80, height: 80 });
+  });
+
+  it('导出：转完之后正好铺满原来的矩形', () => {
+    const box = { x: 0, y: 0, ...page };
+    // 页面坐标 (100,100,200,100) → PDF 坐标左下角 (100, 600)
+    expect(imagePlacement(sig, 0, box)).toEqual({ x: 100, y: 600, width: 200, height: 100, rotate: 0 });
+    // 图片顺时针转 90°（PDF 里逆时针 270°）：图片本身是 100×200，绕左下角转完后要落在矩形里
+    expect(imagePlacement(sig, 90, box)).toEqual({ x: 100, y: 700, width: 100, height: 200, rotate: 270 });
+    expect(imagePlacement(sig, 270, box)).toEqual({ x: 300, y: 600, width: 100, height: 200, rotate: 90 });
+    expect(imagePlacement(sig, 180, box)).toEqual({ x: 300, y: 700, width: 200, height: 100, rotate: 180 });
+  });
+});

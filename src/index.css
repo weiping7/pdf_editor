@@ -201,13 +201,20 @@ body { background: var(--bg); }
 /* 高亮 */
 .page.tool-highlight { cursor: crosshair; }
 .page.tool-highlight .annot-layer > *,
-.page.tool-text .highlight-annot { pointer-events: none; }
+.page.tool-signature .annot-layer > *,
+.page.tool-text .rect-annot { pointer-events: none; }
+.page.tool-signature { cursor: copy; }
 /* 颜色层和 canvas 做正片叠底：像真的荧光笔，下面的黑字不会被盖淡（导出时用同样的混合模式） */
 .highlight-fills { mix-blend-mode: multiply; }
 .highlight-fill { position: absolute; }
-.highlight-annot { position: absolute; pointer-events: auto; cursor: move; }
-.highlight-annot:hover { outline: 1px dashed rgba(37, 99, 235, 0.6); }
-.highlight-annot.selected { outline: 1.5px dashed var(--primary); outline-offset: 1px; }
+.rect-annot { position: absolute; pointer-events: auto; cursor: move; touch-action: none; }
+.rect-annot:hover { outline: 1px dashed rgba(37, 99, 235, 0.6); }
+.rect-annot.selected { outline: 1.5px dashed var(--primary); outline-offset: 1px; }
+.rect-annot.static, .rect-annot.static:hover { pointer-events: none; outline: none; }
+.signature-img {
+  position: absolute; left: 50%; top: 50%; max-width: none;
+  pointer-events: none; user-select: none;
+}
 .hl-handle {
   position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px;
   background: #fff; border: 1.5px solid var(--primary); border-radius: 2px;
@@ -216,3 +223,66 @@ body { background: var(--bg); }
 .hl-e { left: 100%; top: 50%; } .hl-w { left: 0; top: 50%; }
 .hl-ne { left: 100%; top: 0; } .hl-nw { left: 0; top: 0; }
 .hl-se { left: 100%; top: 100%; } .hl-sw { left: 0; top: 100%; }
+
+/* 签名 */
+.pending-sig { height: 28px; max-width: 140px; object-fit: contain; background: #fff; border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; }
+.property-hint { color: var(--muted); }
+
+/* 对话框 */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
+  background: rgba(0, 0, 0, 0.45); padding: 16px;
+}
+.modal {
+  width: 100%; max-width: 580px; max-height: calc(100vh - 32px); overflow: auto;
+  background: var(--surface); color: var(--text); border-radius: 10px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3); padding: 16px 20px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.modal-header { display: flex; align-items: center; justify-content: space-between; }
+.modal-header h2 { margin: 0; font-size: 17px; }
+.modal-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.modal-error { color: var(--danger-text); font-size: 13px; }
+.modal-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.modal-actions { display: flex; gap: 8px; margin-left: auto; }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+
+.saved-sig-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.saved-sig { position: relative; }
+.saved-sig-btn {
+  width: 120px; height: 52px; padding: 4px 8px; background: #fff; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 6px;
+}
+.saved-sig-btn:hover { border-color: var(--primary); }
+.saved-sig-btn img { width: 100%; height: 100%; object-fit: contain; }
+.saved-sig-remove {
+  position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; padding: 0;
+  display: grid; place-items: center; border-radius: 50%; cursor: pointer;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+}
+.saved-sig-remove:hover { color: var(--danger-text); border-color: var(--danger-text); }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
+.tabs button {
+  padding: 6px 14px; border: none; background: none; color: var(--muted); font-size: 14px; cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tabs button.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+
+/* 手写板一直是白底，和纸一样 */
+.sig-pad-wrap { position: relative; width: 100%; aspect-ratio: 520 / 180; background: #fff; border: 1px solid var(--border); border-radius: 8px; }
+.sig-pad { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+.sig-pad-hint { position: absolute; inset: 0; display: grid; place-items: center; color: #9ca3af; font-size: 14px; pointer-events: none; }
+.sig-pad-line { position: absolute; left: 6%; right: 6%; bottom: 24%; border-bottom: 1px dashed #d1d5db; pointer-events: none; }
+.sig-tools { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.sig-tools .swatches { margin-right: auto; }
+
+.sig-upload { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.sig-file-btn { display: inline-flex; align-items: center; }
+.sig-preview {
+  width: 100%; height: 150px; display: grid; place-items: center; padding: 8px;
+  color: #9ca3af; font-size: 13px; border: 1px dashed var(--border); border-radius: 8px;
+  /* 棋盘格背景，能看出哪里是透明的 */
+  background: repeating-conic-gradient(#f3f4f6 0% 25%, #fff 0% 50%) 0 0 / 16px 16px;
+}
+.sig-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }

@@ -183,3 +183,69 @@ export function rectToPdf(rect: Rect, box: Box): Rect {
     height: rect.height,
   };
 }
+
+export const CORNER_HANDLES: Handle[] = ['ne', 'se', 'sw', 'nw'];
+
+/**
+ * 拖动四个角之一，等比例缩放（签名不能被拉变形）。对角固定不动。
+ * @param delta 页面坐标里的拖动距离
+ */
+export function resizeRectKeepAspect(rect: Rect, handle: Handle, delta: Point, page: Size, minSize = 12): Rect {
+  const east = handle.includes('e');
+  const south = handle.includes('s');
+  // 固定不动的对角
+  const ax = east ? rect.x : rect.x + rect.width;
+  const ay = south ? rect.y : rect.y + rect.height;
+  // 被拖动的角的新位置
+  const cx = (east ? rect.x + rect.width : rect.x) + delta.x;
+  const cy = (south ? rect.y + rect.height : rect.y) + delta.y;
+  const w = east ? cx - ax : ax - cx;
+  const h = south ? cy - ay : ay - cy;
+
+  // 取变化更大的方向作为缩放比例，再限制在页面内、不小于最小尺寸
+  let s = Math.max(w / rect.width, h / rect.height);
+  const roomX = east ? page.width - ax : ax;
+  const roomY = south ? page.height - ay : ay;
+  s = Math.min(s, roomX / rect.width, roomY / rect.height);
+  s = Math.max(s, minSize / Math.min(rect.width, rect.height));
+
+  const width = rect.width * s;
+  const height = rect.height * s;
+  return { x: east ? ax : ax - width, y: south ? ay : ay - height, width, height };
+}
+
+/** 新放一个图片时的大小：宽度不超过 maxW、高度不超过 maxH，保持比例 */
+export function fitSize(aspect: number, maxW: number, maxH: number): Size {
+  let width = maxW;
+  let height = width / aspect;
+  if (height > maxH) {
+    height = maxH;
+    width = height * aspect;
+  }
+  return { width, height };
+}
+
+/**
+ * 导出图片（签名）时 pdf-lib drawImage 的参数。
+ * drawImage 的 rotate 是绕图片左下角逆时针转，这里算出转完之后正好铺满 rect 的位置。
+ * @param rect 页面坐标里图片占的矩形（已经是旋转后的样子）
+ * @param rotation 图片自身的旋转（顺时针）
+ */
+export function imagePlacement(rect: Rect, rotation: number, box: Box) {
+  const r = rectToPdf(rect, box);
+  const rotate = (360 - rotation) % 360; // 顺时针 → 逆时针
+  const sideways = rotate === 90 || rotate === 270;
+  // 图片自己（未旋转时）的宽高
+  const w = sideways ? r.height : r.width;
+  const h = sideways ? r.width : r.height;
+  switch (rotate) {
+    case 90:
+      return { x: r.x + h, y: r.y, width: w, height: h, rotate };
+    case 180:
+      return { x: r.x + w, y: r.y + h, width: w, height: h, rotate };
+    case 270:
+      return { x: r.x, y: r.y + w, width: w, height: h, rotate };
+    default:
+      return { x: r.x, y: r.y, width: w, height: h, rotate: 0 };
+  }
+}

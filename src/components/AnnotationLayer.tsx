@@ -1,6 +1,7 @@
 import type { Rect } from '../lib/coords';
 import { HIGHLIGHT_OPACITY, displayRotation, type PageItem } from '../store/useDocStore';
-import { HighlightBox } from './annotations/HighlightBox';
+import { RectBox } from './annotations/RectBox';
+import { SignatureImage } from './annotations/SignatureImage';
 import { TextBox } from './annotations/TextBox';
 
 type Props = {
@@ -18,12 +19,13 @@ type Props = {
  * 分成两层：
  * - 颜色层：高亮的颜色，用“正片叠底”和下面的 PDF 混合（像真的荧光笔，黑字不会变淡）。
  *   混合模式只能作用于整层，所以单独一层。
- * - 操作层：高亮的选框和手柄、文字。
+ * - 操作层：高亮的选框和手柄、签名、文字（文字在最上面）。
  */
 export function AnnotationLayer({ page, zoom, interactive, draft }: Props) {
   if (page.annotations.length === 0 && !draft) return null;
 
   const highlights = page.annotations.filter((a) => a.type === 'highlight');
+  const signatures = page.annotations.filter((a) => a.type === 'signature');
   const texts = page.annotations.filter((a) => a.type === 'text');
   const fills: { key: string; rect: Rect; color: string }[] = highlights.map((a) => ({ key: a.id, rect: a, color: a.color }));
   if (draft) fills.push({ key: 'draft', ...draft });
@@ -50,7 +52,18 @@ export function AnnotationLayer({ page, zoom, interactive, draft }: Props) {
       )}
       <div className="annot-layer" style={layerStyle}>
         {interactive &&
-          highlights.map((a) => <HighlightBox key={a.id} page={page} annot={a} zoom={zoom} style={box(a)} />)}
+          highlights.map((a) => <RectBox key={a.id} page={page} annot={a} zoom={zoom} className="highlight-annot" />)}
+        {signatures.map((a) =>
+          interactive ? (
+            <RectBox key={a.id} page={page} annot={a} zoom={zoom} className="signature-annot">
+              <SignatureImage annot={a} />
+            </RectBox>
+          ) : (
+            <div key={a.id} className="rect-annot signature-annot static" style={box(a)}>
+              <SignatureImage annot={a} />
+            </div>
+          ),
+        )}
         {texts.map((a) => (
           <TextBox key={a.id} page={page} annot={a} zoom={zoom} interactive={interactive} />
         ))}

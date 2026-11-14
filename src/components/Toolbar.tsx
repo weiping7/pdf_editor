@@ -1,12 +1,14 @@
 import { useRef } from 'react';
 import { MAX_ZOOM, MIN_ZOOM, useDocStore } from '../store/useDocStore';
-import { CursorIcon, HighlightIcon, TextIcon } from './Icons';
+import { CursorIcon, HighlightIcon, SignatureIcon, TextIcon } from './Icons';
 
 export function Toolbar() {
   const openRef = useRef<HTMLInputElement>(null);
   const addRef = useRef<HTMLInputElement>(null);
-  const { files, pages, zoom, loading, exporting, currentPageId, tool, openFiles, setZoom, exportPdf, setTool } =
-    useDocStore();
+  const {
+    files, pages, zoom, loading, exporting, currentPageId, tool,
+    openFiles, setZoom, exportPdf, setTool, openSignatureDialog,
+  } = useDocStore();
   const hasDoc = pages.length > 0;
   const currentIndex = pages.findIndex((p) => p.id === currentPageId);
 
@@ -67,6 +69,13 @@ export function Toolbar() {
             title="高亮：在页面上拖出一个框（H）"
           >
             <HighlightIcon /> <span>高亮</span>
+          </button>
+          <button
+            className={`btn tool-btn${tool === 'signature' ? ' active' : ''}`}
+            onClick={() => (tool === 'signature' ? setTool('select') : openSignatureDialog(true))}
+            title="签名：手写或上传签名，再点页面放上去"
+          >
+            <SignatureIcon /> <span>签名</span>
           </button>
         </div>
       )}

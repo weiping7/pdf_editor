@@ -74,3 +74,10 @@ export const HighlightIcon = (p: IconProps) => (
     <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
   </Svg>
 );
+
+export const SignatureIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 17c3-1 4-9 6-9s-1 9 1 9 3-5 4-5 0 4 2 4 2-2 5-2" />
+    <path d="M3 21h18" />
+  </Svg>
+);

@@ -1,5 +1,5 @@
 import { useRef, useState, type MouseEvent, type PointerEvent } from 'react';
-import { rectFromPoints, rotateVector, screenToPage, type Point, type Rect } from '../lib/coords';
+import { fitSize, rectFromPoints, rotateVector, screenToPage, type Point, type Rect } from '../lib/coords';
 import { usePageCanvas } from '../lib/usePageCanvas';
 import { displayRotation, newId, useDocStore, type PageItem, type Rotation } from '../store/useDocStore';
 import { AnnotationLayer } from './AnnotationLayer';
@@ -51,11 +51,41 @@ export function PageView({ page, pageNumber, zoom }: Props) {
     selectAnnotation(null);
   };
 
+  /** 签名工具：以点击位置为中心放一个签名，放完回到选择工具，方便马上拖动、调整大小 */
+  const placeSignature = (center: Point) => {
+    const { pendingSignature: sig, addAnnotation, setTool } = useDocStore.getState();
+    if (!sig) return;
+    const rotation = displayRotation(page);
+    const boxRotation = ((360 - rotation) % 360) as Rotation;
+    // 在屏幕上看起来的大小（pt），不超过页面
+    const size = fitSize(sig.width / sig.height, Math.min(160, page.width * 0.8), Math.min(80, page.height * 0.8));
+    // 图片转了 90° 时，页面坐标里的框宽高要反过来
+    const sideways = boxRotation % 180 !== 0;
+    const width = sideways ? size.height : size.width;
+    const height = sideways ? size.width : size.height;
+    const clamp = (v: number, max: number) => Math.min(Math.max(v, 0), max);
+    setTool('select');
+    addAnnotation(page.id, {
+      id: newId(),
+      type: 'signature',
+      x: clamp(center.x - width / 2, page.width - width),
+      y: clamp(center.y - height / 2, page.height - height),
+      width,
+      height,
+      image: sig.image,
+      rotation: boxRotation,
+    });
+  };
+
   // 用 click 而不是 pointerdown：等浏览器处理完焦点变化再新建，
   // 否则新文字框刚获得焦点就会被抢走焦点
   const handleClick = (e: MouseEvent<HTMLDivElement>) => {
     const { addAnnotation, selectAnnotation, setTool, textStyle } = useDocStore.getState();
     if (tool === 'highlight') return; // 高亮在 pointerup 时已经处理
+    if (tool === 'signature') {
+      placeSignature(toPagePoint(e));
+      return;
+    }
     if (tool !== 'text') {
       selectAnnotation(null); // 点空白处取消选择
       return;
